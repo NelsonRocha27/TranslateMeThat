@@ -1,6 +1,7 @@
 package com.example.translatemethat
 
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,11 +10,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.translatemethat.databinding.ActivityMainBinding
+import java.util.*
 
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    private val REQUEST_SCREENSHOT = 59706
+    private val mgr: MediaProjectionManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +48,14 @@ class MainActivity : AppCompatActivity() {
 
         Log.e("MyTag", "Log.e() example")
 
+        var manager = mgr
+        manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
+        startActivityForResult(
+            manager.createScreenCaptureIntent(),
+            this@MainActivity.REQUEST_SCREENSHOT
+        )
+
         // Example of a call to a native method
         binding.sampleText.text = stringFromJNI()
     }
@@ -52,6 +65,18 @@ class MainActivity : AppCompatActivity() {
         intent.data = Uri.parse("package:$packageName")
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == this@MainActivity.REQUEST_SCREENSHOT) {
+            if (resultCode == RESULT_OK) {
+                val i = Intent(this, ScreenshotService::class.java)
+                    .putExtra(ScreenshotService.EXTRA_RESULT_CODE, resultCode)
+                    .putExtra(ScreenshotService.EXTRA_RESULT_INTENT, data)
+                startService(i)
+            }
+        }
+        finish()
     }
 
     /**
