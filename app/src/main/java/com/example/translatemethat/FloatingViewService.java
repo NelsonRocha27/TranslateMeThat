@@ -14,7 +14,6 @@ import java.util.Calendar;
 
 public class FloatingViewService extends Service implements View.OnClickListener {
 
-
     private WindowManager mWindowManager;
     private View mFloatingView;
     private View collapsedView;
@@ -83,6 +82,7 @@ public class FloatingViewService extends Service implements View.OnClickListener
                     case MotionEvent.ACTION_UP:
                         long clickDuration = Calendar.getInstance().getTimeInMillis() - startClickTime;
                         if(clickDuration < MAX_CLICK_DURATION) {
+                            ScreenshotService a = new ScreenshotService();
                             collapsedView.setVisibility(View.GONE);
                             expandedView.setVisibility(View.VISIBLE);
                         }

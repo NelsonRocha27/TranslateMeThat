@@ -27,7 +27,6 @@ public class MainActivity extends AppCompatActivity {
 
     ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
             result -> {
-                Log.e("MyTag", "HHUHEUHEUHEU");
                 if (result.getResultCode() == RESULT_OK) {
                     Intent i =
                             new Intent(getApplicationContext(), ScreenshotService.class)
@@ -47,24 +46,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            askPermission();
-        }
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            Intent serviceIntent = new Intent(this, FloatingViewService.class);
-            startService(serviceIntent);
-            finish();
-        } else if (Settings.canDrawOverlays(this)) {
-            Intent serviceIntent = new Intent(this, FloatingViewService.class);
-            startService(serviceIntent);
-            //finish();
-        } else {
-            askPermission();
             Toast.makeText(
                     this,
                     "You need System Alert Window Permission to do this",
                     Toast.LENGTH_SHORT
             ).show();
+            askOverlayPermission();
         }
 
         Log.e("MyTag", "Log.e() example");
@@ -72,14 +59,12 @@ public class MainActivity extends AppCompatActivity {
         MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         launcher.launch(mgr.createScreenCaptureIntent());
 
-        //finish();
-
         // Example of a call to a native method
         TextView tv = binding.sampleText;
         tv.setText(stringFromJNI());
     }
 
-    private void askPermission() {
+    private void askOverlayPermission() {
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
         intent.setData(Uri.parse("package:" + getPackageName()));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -90,5 +75,6 @@ public class MainActivity extends AppCompatActivity {
      * A native method that is implemented by the 'native-lib' native library,
      * which is packaged with this application.
      */
+    @SuppressWarnings("JniMissingFunction")
     public native String stringFromJNI();
 }
