@@ -75,6 +75,75 @@ public class ScreenshotService extends Service implements View.OnClickListener{
   public void onCreate() {
     super.onCreate();
 
+    setFloatingView();
+
+    mgr=(MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+    wmgr=(WindowManager)getSystemService(WINDOW_SERVICE);
+
+    handlerThread.start();
+    handler=new Handler(handlerThread.getLooper());
+  }
+
+  @Override
+  public int onStartCommand(Intent i, int flags, int startId) {
+    if (i.getAction()==null) {
+      resultCode=i.getIntExtra(EXTRA_RESULT_CODE, 1337);
+      if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        resultData=i.getParcelableExtra(EXTRA_RESULT_INTENT, Intent.class);
+      } else {
+        resultData=i.getParcelableExtra(EXTRA_RESULT_INTENT);
+      }
+      foregroundify();
+    }
+    else if (ACTION_SHUTDOWN.equals(i.getAction())) {
+      beeper.startTone(ToneGenerator.TONE_PROP_NACK);
+      stopForeground(true);
+      stopSelf();
+    }
+
+    return(START_NOT_STICKY);
+  }
+
+  @Override
+  public void onDestroy() {
+    stopCapture();
+
+    super.onDestroy();
+    if (mFloatingView != null) mWindowManager.removeView(mFloatingView);
+  }
+
+  @Override
+  public void onClick(View v) {
+    switch (v.getId()) {
+      case R.id.layoutExpanded:
+        //switching views
+        collapsedView.setVisibility(View.VISIBLE);
+        expandedView.setVisibility(View.GONE);
+        break;
+
+      case R.id.buttonClose:
+        //closing the widget
+        stopSelf();
+        break;
+    }
+  }
+
+  @Nullable
+  @Override
+  public IBinder onBind(Intent intent) {
+    throw new IllegalStateException("Binding not supported. Go away.");
+  }
+
+  WindowManager getWindowManager() {
+    return(wmgr);
+  }
+
+  Handler getHandler() {
+    return(handler);
+  }
+
+  void setFloatingView()
+  {
     //getting the widget layout from xml using layout inflater
     mFloatingView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
 
@@ -141,66 +210,6 @@ public class ScreenshotService extends Service implements View.OnClickListener{
         return false;
       }
     });
-
-
-    mgr=(MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
-    wmgr=(WindowManager)getSystemService(WINDOW_SERVICE);
-
-    handlerThread.start();
-    handler=new Handler(handlerThread.getLooper());
-  }
-
-  @Override
-  public int onStartCommand(Intent i, int flags, int startId) {
-    if (i.getAction()==null) {
-      resultCode=i.getIntExtra(EXTRA_RESULT_CODE, 1337);
-      if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        resultData=i.getParcelableExtra(EXTRA_RESULT_INTENT, Intent.class);
-      } else {
-        resultData=i.getParcelableExtra(EXTRA_RESULT_INTENT);
-      }
-      foregroundify();
-    }
-
-    return(START_NOT_STICKY);
-  }
-
-  @Override
-  public void onDestroy() {
-    stopCapture();
-
-    super.onDestroy();
-    if (mFloatingView != null) mWindowManager.removeView(mFloatingView);
-  }
-
-  @Override
-  public void onClick(View v) {
-    switch (v.getId()) {
-      case R.id.layoutExpanded:
-        //switching views
-        collapsedView.setVisibility(View.VISIBLE);
-        expandedView.setVisibility(View.GONE);
-        break;
-
-      case R.id.buttonClose:
-        //closing the widget
-        stopSelf();
-        break;
-    }
-  }
-
-  @Nullable
-  @Override
-  public IBinder onBind(Intent intent) {
-    throw new IllegalStateException("Binding not supported. Go away.");
-  }
-
-  WindowManager getWindowManager() {
-    return(wmgr);
-  }
-
-  Handler getHandler() {
-    return(handler);
   }
 
   void processImage(final byte[] png) {
@@ -262,6 +271,14 @@ public class ScreenshotService extends Service implements View.OnClickListener{
   private void foregroundify() {
     NotificationCompat.Builder b=
       new NotificationCompat.Builder(this, CHANNEL_WHATEVER);
+
+    b.setContentTitle("TranslateMeThat")
+      .setSmallIcon(R.mipmap.ic_launcher)
+      .setTicker("TranslateMeThat");
+
+    b.addAction(R.drawable.ic_launcher_background,
+      "Shutdown",
+      buildPendingIntent(ACTION_SHUTDOWN));
 
     startForeground(NOTIFY_ID, b.build());
   }
