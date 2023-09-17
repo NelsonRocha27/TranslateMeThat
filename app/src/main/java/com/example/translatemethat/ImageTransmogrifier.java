@@ -89,7 +89,9 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
 
       byte[] newPng=baos.toByteArray();
 
-      svc.processImage(newPng);
+      //svc.processImage(newPng);
+      svc.bitm = cropped;
+      //svc.startTranslate(cropped);
     }
   }
 

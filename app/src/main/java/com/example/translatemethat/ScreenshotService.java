@@ -14,36 +14,68 @@
 
 package com.example.translatemethat;
 
+import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
+import android.graphics.Point;
+import android.graphics.Rect;
+import android.hardware.camera2.CameraAccessException;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.AudioManager;
+import android.media.Image;
 import android.media.MediaScannerConnection;
 import android.media.ToneGenerator;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Log;
+import android.util.SparseIntArray;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.Toast;
+
 import androidx.core.app.NotificationCompat;
 import com.example.translatemethat.BuildConfig;
+import com.example.translatemethat.GraphicUtils.GraphicOverlay;
+import com.example.translatemethat.GraphicUtils.TextGraphic;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Calendar;
+import java.util.List;
 
 public class ScreenshotService extends Service implements View.OnClickListener{
   private static final String CHANNEL_WHATEVER="channel_whatever";
@@ -70,6 +102,10 @@ public class ScreenshotService extends Service implements View.OnClickListener{
   private View mFloatingView;
   private View collapsedView;
   private View expandedView;
+  private View translationView;
+  public Bitmap bitm = null;
+
+  private GraphicOverlay mGraphicOverlay;
 
   @Override
   public void onCreate() {
@@ -109,7 +145,11 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     stopCapture();
 
     super.onDestroy();
-    if (mFloatingView != null) mWindowManager.removeView(mFloatingView);
+    if (mFloatingView != null)
+    {
+      mWindowManager.removeView(mFloatingView);
+      mWindowManager.removeView(translationView);
+    }
   }
 
   @Override
@@ -146,6 +186,7 @@ public class ScreenshotService extends Service implements View.OnClickListener{
   {
     //getting the widget layout from xml using layout inflater
     mFloatingView = LayoutInflater.from(this).inflate(R.layout.overlay_layout, null);
+    translationView = LayoutInflater.from(this).inflate(R.layout.translation_layout, null);
 
     //setting the layout parameters
     final WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -155,11 +196,19 @@ public class ScreenshotService extends Service implements View.OnClickListener{
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT);
 
+    WindowManager.LayoutParams params2 = new WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT);
 
     //getting windows services and adding the floating view to it
     mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+    mWindowManager.addView(translationView, params2);
     mWindowManager.addView(mFloatingView, params);
 
+    mGraphicOverlay = translationView.findViewById(R.id.graphic_overlay);
 
     //getting the collapsed and expanded view from the floating view
     collapsedView = mFloatingView.findViewById(R.id.layoutCollapsed);
@@ -197,6 +246,11 @@ public class ScreenshotService extends Service implements View.OnClickListener{
               startCapture();
               collapsedView.setVisibility(View.GONE);
               expandedView.setVisibility(View.VISIBLE);
+              while(bitm == null)
+              {
+
+              }
+              startTranslate(bitm);
             }
             return true;
 
@@ -216,8 +270,7 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     new Thread() {
       @Override
       public void run() {
-        File output=new File(getExternalFilesDir(null),
-          "screenshot.png");
+        File output=new File("/storage/emulated/0/Download/screenshot.png");
 
         try {
           FileOutputStream fos=new FileOutputStream(output);
@@ -289,5 +342,69 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     i.setAction(action);
 
     return(PendingIntent.getService(this, 0, i, 0));
+  }
+
+  void startTranslate(Bitmap bitmap) {
+    TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+
+    InputImage image = InputImage.fromBitmap(bitmap, 0);
+
+    mGraphicOverlay.clear();
+
+    if(image != null) {
+      Task<Text> result =
+              recognizer.process(image)
+                      .addOnSuccessListener(visionText -> {
+                        processTextRecognitionResult(visionText);
+                      })
+                      .addOnFailureListener(
+                              e -> {
+                                Toast.makeText(getApplicationContext(), "No image selected", Toast.LENGTH_SHORT).show();
+                              });
+    }
+  }
+
+  //perform operation on the full text recognized in the image.
+  private void processTextRecognitionResult(Text texts) {
+
+    String resultText = texts.getText();
+
+    //Toast.makeText(getApplicationContext(), resultText, Toast.LENGTH_LONG).show();
+
+    List<Text.TextBlock> blocks = texts.getTextBlocks();
+    if (blocks.size() == 0) {
+      Toast.makeText(getApplicationContext(), "No text found", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    for (Text.TextBlock block : texts.getTextBlocks()) {
+      for (Text.Line line : block.getLines()) {
+        for (Text.Element element : line.getElements()) {
+          //Draws the bounding box around the element.
+          GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, element);
+          mGraphicOverlay.add(textGraphic);
+        }
+      }
+    }
+
+    /*for (Text.TextBlock block : result.getTextBlocks()) {
+      String blockText = block.getText();
+      Point[] blockCornerPoints = block.getCornerPoints();
+      Rect blockFrame = block.getBoundingBox();
+      for (Text.Line line : block.getLines()) {
+        String lineText = line.getText();
+        Point[] lineCornerPoints = line.getCornerPoints();
+        Rect lineFrame = line.getBoundingBox();
+        for (Text.Element element : line.getElements()) {
+          String elementText = element.getText();
+          Point[] elementCornerPoints = element.getCornerPoints();
+          Rect elementFrame = element.getBoundingBox();
+          for (Text.Symbol symbol : element.getSymbols()) {
+            String symbolText = symbol.getText();
+            Point[] symbolCornerPoints = symbol.getCornerPoints();
+            Rect symbolFrame = symbol.getBoundingBox();
+          }
+        }
+      }
+    }*/
   }
 }
