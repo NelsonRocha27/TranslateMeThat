@@ -3,6 +3,7 @@ package com.example.translatemethat.GraphicUtils;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.Log;
 import com.example.translatemethat.GraphicUtils.GraphicOverlay.Graphic;
@@ -21,7 +22,8 @@ public class TextGraphic extends Graphic {
 
     private final Paint rectPaint;
     private final Paint textPaint;
-    private final Text.Element element;
+    private Text.Element element = null;
+    private Text.Line line = null;
 
     public TextGraphic(GraphicOverlay overlay, Text.Element element) {
         super(overlay);
@@ -29,8 +31,25 @@ public class TextGraphic extends Graphic {
         this.element = element;
 
         rectPaint = new Paint();
-        rectPaint.setColor(TEXT_COLOR);
-        rectPaint.setStyle(Paint.Style.STROKE);
+        rectPaint.setColor(Color.GREEN);
+        rectPaint.setStyle(Paint.Style.FILL);
+        rectPaint.setStrokeWidth(STROKE_WIDTH);
+
+        textPaint = new Paint();
+        textPaint.setColor(TEXT_COLOR);
+        textPaint.setTextSize(TEXT_SIZE);
+        // Redraw the overlay, as this graphic has been added.
+        postInvalidate();
+    }
+
+    public TextGraphic(GraphicOverlay overlay, Text.Line line) {
+        super(overlay);
+
+        this.line = line;
+
+        rectPaint = new Paint();
+        rectPaint.setColor(Color.GREEN);
+        rectPaint.setStyle(Paint.Style.FILL_AND_STROKE);
         rectPaint.setStrokeWidth(STROKE_WIDTH);
 
         textPaint = new Paint();
@@ -45,15 +64,56 @@ public class TextGraphic extends Graphic {
      */
     @Override
     public void draw(Canvas canvas) {
-        if (element == null) {
+        if(element != null)
+        {
+            // Draws the bounding box around the TextBlock.
+            RectF rect = new RectF(element.getBoundingBox());
+            canvas.drawRect(rect, rectPaint);
+
+            // Renders the text at the bottom of the box.
+            String text = element.getText();
+            float textSize = textPaint.getTextSize();
+
+            Rect r = new Rect();
+            rect.round(r);
+            textPaint.getTextBounds(text, 0, text.length(), r);
+
+            while (r.width() > rect.right - rect.left)
+            {
+                textSize--;
+                textPaint.setTextSize(textSize);
+                textPaint.getTextBounds(text, 0, text.length(), r);
+            }
+            canvas.drawText(element.getText(), rect.left, rect.bottom, textPaint);
+        }
+        else if (line != null)
+        {
+            // Draws the bounding box around the TextBlock.
+            RectF rect = new RectF(line.getBoundingBox());
+            canvas.drawRect(rect, rectPaint);
+
+            // Renders the text at the bottom of the box.
+
+            String text = line.getText();
+            float textSize = textPaint.getTextSize();
+
+            Rect r = new Rect();
+            rect.round(r);
+            textPaint.getTextBounds(text, 0, text.length(), r);
+
+            while (r.width() > rect.right - rect.left)
+            {
+                textSize--;
+                textPaint.setTextSize(textSize);
+                textPaint.getTextBounds(text, 0, text.length(), r);
+            }
+
+            //textPaint.setTextSize(rect.bottom - rect.top);
+            canvas.drawText(line.getText(), rect.left, rect.bottom, textPaint);
+        }
+        else
+        {
             throw new IllegalStateException("Attempting to draw a null text.");
         }
-
-        // Draws the bounding box around the TextBlock.
-        RectF rect = new RectF(element.getBoundingBox());
-        canvas.drawRect(rect, rectPaint);
-
-        // Renders the text at the bottom of the box.
-        canvas.drawText(element.getText(), rect.left, rect.bottom, textPaint);
     }
 }

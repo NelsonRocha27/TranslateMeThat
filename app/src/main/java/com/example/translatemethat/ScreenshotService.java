@@ -208,6 +208,8 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     mWindowManager.addView(translationView, params2);
     mWindowManager.addView(mFloatingView, params);
 
+    translationView.setVisibility(View.GONE); // children clickable
+
     mGraphicOverlay = translationView.findViewById(R.id.graphic_overlay);
 
     //getting the collapsed and expanded view from the floating view
@@ -369,6 +371,8 @@ public class ScreenshotService extends Service implements View.OnClickListener{
 
     String resultText = texts.getText();
 
+    translationView.setVisibility(View.VISIBLE);
+
     //Toast.makeText(getApplicationContext(), resultText, Toast.LENGTH_LONG).show();
 
     List<Text.TextBlock> blocks = texts.getTextBlocks();
@@ -378,6 +382,8 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     }
     for (Text.TextBlock block : texts.getTextBlocks()) {
       for (Text.Line line : block.getLines()) {
+        /*GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, line);
+        mGraphicOverlay.add(textGraphic);*/
         for (Text.Element element : line.getElements()) {
           //Draws the bounding box around the element.
           GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, element);

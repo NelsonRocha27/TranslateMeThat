@@ -42,10 +42,10 @@ public class ImageTransmogrifier implements ImageReader.OnImageAvailableListener
     int width=size.x;
     int height=size.y;
 
-    while (width*height > (2<<19)) {
+    /*while (width*height > (2<<19)) {
       width=width>>1;
       height=height>>1;
-    }
+    }*/
 
     this.width=width;
     this.height=height;
