@@ -54,6 +54,7 @@ import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import com.example.translatemethat.BuildConfig;
 import com.example.translatemethat.GraphicUtils.GraphicOverlay;
@@ -61,6 +62,14 @@ import com.example.translatemethat.GraphicUtils.TextGraphic;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.nl.languageid.LanguageIdentification;
+import com.google.mlkit.nl.languageid.LanguageIdentificationOptions;
+import com.google.mlkit.nl.languageid.LanguageIdentifier;
+import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.nl.translate.Translation;
+import com.google.mlkit.nl.translate.Translator;
+import com.google.mlkit.nl.translate.TranslatorOptions;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
@@ -386,8 +395,8 @@ public class ScreenshotService extends Service implements View.OnClickListener{
         mGraphicOverlay.add(textGraphic);*/
         for (Text.Element element : line.getElements()) {
           //Draws the bounding box around the element.
-          GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, element);
-          mGraphicOverlay.add(textGraphic);
+
+          TranslateProcess(element);
         }
       }
     }
@@ -413,4 +422,103 @@ public class ScreenshotService extends Service implements View.OnClickListener{
       }
     }*/
   }
+
+  private void IdentifyLanguage(Text.Element element)
+  {
+    LanguageIdentifier languageIdentifier = LanguageIdentification.getClient();
+    LanguageIdentification.getClient(new LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.05f).build());
+    languageIdentifier.identifyLanguage(element.getText())
+            .addOnSuccessListener(
+                    new OnSuccessListener<String>() {
+                      @Override
+                      public void onSuccess(@Nullable String languageCode) {
+                        if (languageCode.equals("und")) {
+                          Log.i("Error", element.getText() + " -> Can't identify language.");
+                          Translator translator = CreateTranslator(TranslateLanguage.GERMAN, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, element);
+                        } else {
+                          Log.i("Info", element.getText() + " -> Language: " + languageCode);
+                          Translator translator = CreateTranslator(languageCode, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, element);
+                        }
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be loaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
+  private Translator CreateTranslator(String source, String target)
+  {
+    TranslatorOptions options = new TranslatorOptions.Builder()
+            .setSourceLanguage(source)
+            .setTargetLanguage(target)
+            .build();
+
+    Translator translator = com.google.mlkit.nl.translate.Translation.getClient(options);
+    return translator;
+  }
+
+  private void DownloadLanguageModel(Translator translator, Text.Element element)
+  {
+    DownloadConditions conditions = new DownloadConditions.Builder()
+            .requireWifi()
+            .build();
+
+    translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener(
+                    new OnSuccessListener() {
+                      @Override
+                      public void onSuccess(Object o) {
+                        // Model downloaded successfully. Okay to start translating.
+                        // (Set a flag, unhide the translation UI, etc.)
+                        Translate(translator, element);
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be downloaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void Translate(Translator translator, Text.Element element)
+  {
+    translator.translate(element.getText())
+            .addOnSuccessListener(
+                    (OnSuccessListener) translatedText -> {
+                      // Translation successful.
+                      String translated_text = translatedText.toString();
+                      GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, element, translated_text);
+                      mGraphicOverlay.add(textGraphic);
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void TranslateProcess(Text.Element element)
+  {
+    IdentifyLanguage(element);
+    /*if(identified_language != null) CreateTranslator(identified_language, TranslateLanguage.ENGLISH);
+    else return;
+    if(translator != null) DownloadLanguageModel();
+    else return;
+    if(translator != null) Translate();
+    else return;*/
+  }
+
 }

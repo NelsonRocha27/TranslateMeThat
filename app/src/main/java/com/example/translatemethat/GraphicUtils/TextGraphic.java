@@ -5,7 +5,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.util.Log;
+
 import com.example.translatemethat.GraphicUtils.GraphicOverlay.Graphic;
 import com.google.mlkit.vision.text.Text;
 
@@ -24,11 +24,13 @@ public class TextGraphic extends Graphic {
     private final Paint textPaint;
     private Text.Element element = null;
     private Text.Line line = null;
+    private String translated = null;
 
-    public TextGraphic(GraphicOverlay overlay, Text.Element element) {
+    public TextGraphic(GraphicOverlay overlay, Text.Element element, String translated) {
         super(overlay);
 
         this.element = element;
+        this.translated = translated;
 
         rectPaint = new Paint();
         rectPaint.setColor(Color.GREEN);
@@ -71,7 +73,9 @@ public class TextGraphic extends Graphic {
             canvas.drawRect(rect, rectPaint);
 
             // Renders the text at the bottom of the box.
-            String text = element.getText();
+            String text =  translated;
+            if (text == null) return;
+
             float textSize = textPaint.getTextSize();
 
             Rect r = new Rect();
@@ -84,7 +88,7 @@ public class TextGraphic extends Graphic {
                 textPaint.setTextSize(textSize);
                 textPaint.getTextBounds(text, 0, text.length(), r);
             }
-            canvas.drawText(element.getText(), rect.left, rect.bottom, textPaint);
+            canvas.drawText(text, rect.left, rect.bottom, textPaint);
         }
         else if (line != null)
         {
