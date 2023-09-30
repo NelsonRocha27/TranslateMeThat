@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -377,12 +378,7 @@ public class ScreenshotService extends Service implements View.OnClickListener{
 
   //perform operation on the full text recognized in the image.
   private void processTextRecognitionResult(Text texts) {
-
-    String resultText = texts.getText();
-
     translationView.setVisibility(View.VISIBLE);
-
-    //Toast.makeText(getApplicationContext(), resultText, Toast.LENGTH_LONG).show();
 
     List<Text.TextBlock> blocks = texts.getTextBlocks();
     if (blocks.size() == 0) {
@@ -390,14 +386,14 @@ public class ScreenshotService extends Service implements View.OnClickListener{
       return;
     }
     for (Text.TextBlock block : texts.getTextBlocks()) {
+      TranslateProcess(block);
       for (Text.Line line : block.getLines()) {
-        /*GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, line);
-        mGraphicOverlay.add(textGraphic);*/
-        for (Text.Element element : line.getElements()) {
+        //TranslateProcess(line);
+        /*for (Text.Element element : line.getElements()) {
           //Draws the bounding box around the element.
 
           TranslateProcess(element);
-        }
+        }*/
       }
     }
 
@@ -453,6 +449,66 @@ public class ScreenshotService extends Service implements View.OnClickListener{
                     });
   }
 
+  private void IdentifyLanguage(Text.Line line)
+  {
+    LanguageIdentifier languageIdentifier = LanguageIdentification.getClient();
+    LanguageIdentification.getClient(new LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.05f).build());
+    languageIdentifier.identifyLanguage(line.getText())
+            .addOnSuccessListener(
+                    new OnSuccessListener<String>() {
+                      @Override
+                      public void onSuccess(@Nullable String languageCode) {
+                        if (languageCode.equals("und")) {
+                          Log.i("Error", line.getText() + " -> Can't identify language.");
+                          Translator translator = CreateTranslator(TranslateLanguage.GERMAN, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, line);
+                        } else {
+                          Log.i("Info", line.getText() + " -> Language: " + languageCode);
+                          Translator translator = CreateTranslator(languageCode, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, line);
+                        }
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be loaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void IdentifyLanguage(Text.TextBlock block)
+  {
+    LanguageIdentifier languageIdentifier = LanguageIdentification.getClient();
+    LanguageIdentification.getClient(new LanguageIdentificationOptions.Builder().setConfidenceThreshold(0.05f).build());
+    languageIdentifier.identifyLanguage(block.getText())
+            .addOnSuccessListener(
+                    new OnSuccessListener<String>() {
+                      @Override
+                      public void onSuccess(@Nullable String languageCode) {
+                        if (languageCode.equals("und")) {
+                          Log.i("Error", block.getText() + " -> Can't identify language.");
+                          Translator translator = CreateTranslator(TranslateLanguage.GERMAN, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, block);
+                        } else {
+                          Log.i("Info", block.getText() + " -> Language: " + languageCode);
+                          Translator translator = CreateTranslator(languageCode, TranslateLanguage.ENGLISH);
+                          DownloadLanguageModel(translator, block);
+                        }
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be loaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
   private Translator CreateTranslator(String source, String target)
   {
     TranslatorOptions options = new TranslatorOptions.Builder()
@@ -490,6 +546,58 @@ public class ScreenshotService extends Service implements View.OnClickListener{
                     });
   }
 
+  private void DownloadLanguageModel(Translator translator, Text.Line line)
+  {
+    DownloadConditions conditions = new DownloadConditions.Builder()
+            .requireWifi()
+            .build();
+
+    translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener(
+                    new OnSuccessListener() {
+                      @Override
+                      public void onSuccess(Object o) {
+                        // Model downloaded successfully. Okay to start translating.
+                        // (Set a flag, unhide the translation UI, etc.)
+                        Translate(translator, line);
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be downloaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void DownloadLanguageModel(Translator translator, Text.TextBlock block)
+  {
+    DownloadConditions conditions = new DownloadConditions.Builder()
+            .requireWifi()
+            .build();
+
+    translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener(
+                    new OnSuccessListener() {
+                      @Override
+                      public void onSuccess(Object o) {
+                        // Model downloaded successfully. Okay to start translating.
+                        // (Set a flag, unhide the translation UI, etc.)
+                        Translate(translator, block);
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Model couldn’t be downloaded or other internal error.
+                        // ...
+                      }
+                    });
+  }
+
   private void Translate(Translator translator, Text.Element element)
   {
     translator.translate(element.getText())
@@ -497,8 +605,57 @@ public class ScreenshotService extends Service implements View.OnClickListener{
                     (OnSuccessListener) translatedText -> {
                       // Translation successful.
                       String translated_text = translatedText.toString();
-                      GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, element, translated_text);
-                      mGraphicOverlay.add(textGraphic);
+                      if(translated_text != element.getText())
+                      {
+                        GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, bitm, element, translated_text);
+                        mGraphicOverlay.add(textGraphic);
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void Translate(Translator translator, Text.Line line)
+  {
+    translator.translate(line.getText())
+            .addOnSuccessListener(
+                    (OnSuccessListener) translatedText -> {
+                      // Translation successful.
+                      String translated_text = translatedText.toString();
+                      if(translated_text != line.getText())
+                      {
+                        GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, bitm, line, translated_text);
+                        mGraphicOverlay.add(textGraphic);
+                      }
+                    })
+            .addOnFailureListener(
+                    new OnFailureListener() {
+                      @Override
+                      public void onFailure(@NonNull Exception e) {
+                        // Error.
+                        // ...
+                      }
+                    });
+  }
+
+  private void Translate(Translator translator, Text.TextBlock block)
+  {
+    translator.translate(block.getText())
+            .addOnSuccessListener(
+                    (OnSuccessListener) translatedText -> {
+                      // Translation successful.
+                      String translated_text = translatedText.toString();
+                      if(translated_text != block.getText())
+                      {
+                        GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, bitm, block, translated_text);
+                        mGraphicOverlay.add(textGraphic);
+                      }
                     })
             .addOnFailureListener(
                     new OnFailureListener() {
@@ -519,6 +676,16 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     else return;
     if(translator != null) Translate();
     else return;*/
+  }
+
+  private void TranslateProcess(Text.Line line)
+  {
+    IdentifyLanguage(line);
+  }
+
+  private void TranslateProcess(Text.TextBlock block)
+  {
+    IdentifyLanguage(block);
   }
 
 }

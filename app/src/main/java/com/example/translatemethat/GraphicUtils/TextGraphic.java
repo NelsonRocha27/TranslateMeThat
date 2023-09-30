@@ -1,5 +1,6 @@
 package com.example.translatemethat.GraphicUtils;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -24,16 +25,17 @@ public class TextGraphic extends Graphic {
     private final Paint textPaint;
     private Text.Element element = null;
     private Text.Line line = null;
+    private Text.TextBlock block = null;
     private String translated = null;
 
-    public TextGraphic(GraphicOverlay overlay, Text.Element element, String translated) {
+    public TextGraphic(GraphicOverlay overlay, Bitmap bmp, Text.Element element, String translated) {
         super(overlay);
 
         this.element = element;
         this.translated = translated;
 
         rectPaint = new Paint();
-        rectPaint.setColor(Color.GREEN);
+        rectPaint.setColor(getPixelColor(element, bmp));
         rectPaint.setStyle(Paint.Style.FILL);
         rectPaint.setStrokeWidth(STROKE_WIDTH);
 
@@ -44,13 +46,14 @@ public class TextGraphic extends Graphic {
         postInvalidate();
     }
 
-    public TextGraphic(GraphicOverlay overlay, Text.Line line) {
+    public TextGraphic(GraphicOverlay overlay, Bitmap bmp, Text.Line line, String translated) {
         super(overlay);
 
         this.line = line;
+        this.translated = translated;
 
         rectPaint = new Paint();
-        rectPaint.setColor(Color.GREEN);
+        rectPaint.setColor(getPixelColor(line, bmp));
         rectPaint.setStyle(Paint.Style.FILL_AND_STROKE);
         rectPaint.setStrokeWidth(STROKE_WIDTH);
 
@@ -59,6 +62,39 @@ public class TextGraphic extends Graphic {
         textPaint.setTextSize(TEXT_SIZE);
         // Redraw the overlay, as this graphic has been added.
         postInvalidate();
+    }
+
+    public TextGraphic(GraphicOverlay overlay, Bitmap bmp, Text.TextBlock block, String translated) {
+        super(overlay);
+
+        this.block = block;
+        this.translated = translated;
+
+        rectPaint = new Paint();
+        rectPaint.setColor(getPixelColor(block, bmp));
+        rectPaint.setStyle(Paint.Style.FILL_AND_STROKE);
+        rectPaint.setStrokeWidth(STROKE_WIDTH);
+
+        textPaint = new Paint();
+        textPaint.setColor(TEXT_COLOR);
+        textPaint.setTextSize(TEXT_SIZE);
+        // Redraw the overlay, as this graphic has been added.
+        postInvalidate();
+    }
+
+    public int getPixelColor(Text.TextBlock block, Bitmap bmp) {
+        RectF rect = new RectF(block.getBoundingBox());
+        return bmp.getPixel((int)rect.left, (int)rect.bottom);
+    }
+
+    public int getPixelColor(Text.Line line, Bitmap bmp) {
+        RectF rect = new RectF(line.getBoundingBox());
+        return bmp.getPixel((int)rect.left, (int)rect.bottom);
+    }
+
+    public int getPixelColor(Text.Element element, Bitmap bmp) {
+        RectF rect = new RectF(element.getBoundingBox());
+        return bmp.getPixel((int)rect.left, (int)rect.bottom);
     }
 
     /**
@@ -73,7 +109,7 @@ public class TextGraphic extends Graphic {
             canvas.drawRect(rect, rectPaint);
 
             // Renders the text at the bottom of the box.
-            String text =  translated;
+            String text = translated;
             if (text == null) return;
 
             float textSize = textPaint.getTextSize();
@@ -94,11 +130,12 @@ public class TextGraphic extends Graphic {
         {
             // Draws the bounding box around the TextBlock.
             RectF rect = new RectF(line.getBoundingBox());
+
             canvas.drawRect(rect, rectPaint);
 
             // Renders the text at the bottom of the box.
 
-            String text = line.getText();
+            String text = translated;
             float textSize = textPaint.getTextSize();
 
             Rect r = new Rect();
@@ -113,7 +150,32 @@ public class TextGraphic extends Graphic {
             }
 
             //textPaint.setTextSize(rect.bottom - rect.top);
-            canvas.drawText(line.getText(), rect.left, rect.bottom, textPaint);
+            canvas.drawText(text, rect.left, rect.bottom, textPaint);
+        }
+        else if (block != null)
+        {
+            // Draws the bounding box around the TextBlock.
+            RectF rect = new RectF(block.getBoundingBox());
+            canvas.drawRect(rect, rectPaint);
+
+            // Renders the text at the bottom of the box.
+
+            String text = translated;
+            float textSize = textPaint.getTextSize();
+
+            Rect r = new Rect();
+            rect.round(r);
+            textPaint.getTextBounds(text, 0, text.length(), r);
+
+            while (r.width() > rect.right - rect.left)
+            {
+                textSize--;
+                textPaint.setTextSize(textSize);
+                textPaint.getTextBounds(text, 0, text.length(), r);
+            }
+
+            //textPaint.setTextSize(rect.bottom - rect.top);
+            canvas.drawText(text, rect.left, rect.bottom, textPaint);
         }
         else
         {
