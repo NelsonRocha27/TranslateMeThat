@@ -169,6 +169,8 @@ public class ScreenshotService extends Service implements View.OnClickListener{
         //switching views
         collapsedView.setVisibility(View.VISIBLE);
         expandedView.setVisibility(View.GONE);
+        mGraphicOverlay.clear();
+        translationView.setVisibility(View.GONE);
         break;
 
       case R.id.buttonClose:
@@ -218,7 +220,7 @@ public class ScreenshotService extends Service implements View.OnClickListener{
     mWindowManager.addView(translationView, params2);
     mWindowManager.addView(mFloatingView, params);
 
-    translationView.setVisibility(View.GONE); // children clickable
+    translationView.setVisibility(View.GONE);
 
     mGraphicOverlay = translationView.findViewById(R.id.graphic_overlay);
 
@@ -494,8 +496,11 @@ public class ScreenshotService extends Service implements View.OnClickListener{
                           DownloadLanguageModel(translator, block);
                         } else {
                           Log.i("Info", block.getText() + " -> Language: " + languageCode);
-                          Translator translator = CreateTranslator(languageCode, TranslateLanguage.ENGLISH);
-                          DownloadLanguageModel(translator, block);
+                          if(languageCode.equals(TranslateLanguage.GERMAN))
+                          {
+                            Translator translator = CreateTranslator(languageCode, TranslateLanguage.ENGLISH);
+                            DownloadLanguageModel(translator, block);
+                          }
                         }
                       }
                     })
@@ -651,11 +656,12 @@ public class ScreenshotService extends Service implements View.OnClickListener{
                     (OnSuccessListener) translatedText -> {
                       // Translation successful.
                       String translated_text = translatedText.toString();
-                      if(translated_text != block.getText())
+                      if(!translated_text.equals(block.getText()))
                       {
                         GraphicOverlay.Graphic textGraphic = new TextGraphic(mGraphicOverlay, bitm, block, translated_text);
                         mGraphicOverlay.add(textGraphic);
                       }
+                      translator.close();
                     })
             .addOnFailureListener(
                     new OnFailureListener() {
